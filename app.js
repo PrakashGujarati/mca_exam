@@ -1,11 +1,14 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 
 // Allow all CORS requests
 app.use(cors());
 
+// Serve static files from the 'images' directory
+app.use('/images', express.static(path.join(__dirname, 'images')));
 // Define your API endpoints
 app.get('/api/setb', (req, res) => {
   res.json({ data: [
