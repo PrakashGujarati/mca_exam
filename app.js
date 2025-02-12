@@ -1,5 +1,5 @@
 const express = require("express");
-const os = require("os");
+const fs = require("fs");
 const cors = require("cors");
 
 const app = express();
@@ -7,32 +7,62 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 
-function getSystemInfo() {
-    return {
-        hostname: os.hostname(),
-        osType: os.type(), // Windows, Linux, Darwin (macOS)
-        platform: os.platform(), // win32, linux, darwin
-        arch: os.arch(), // x64, arm, arm64, ia32, etc.
-        release: os.release(),
-        uptime: os.uptime(),
-        totalMemory: `${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)} GB`,
-        freeMemory: `${(os.freemem() / 1024 / 1024 / 1024).toFixed(2)} GB`,
-        cpuCores: os.cpus().length,
-        cpuModel: os.cpus()[0].model,
-        loadAverage: os.loadavg(), // Only for Unix-based systems
-        networkInterfaces: os.networkInterfaces(),
-        userInfo: os.userInfo()
+// Function to detect environment
+function detectEnvironment() {
+    const envInfo = {
+        isDocker: false,
+        isHerokuDyno: false,
+        isAWSLambda: false,
+        isKubernetes: false,
+        isCloudVM: false
     };
+
+    // 🔹 Check for Docker
+    if (fs.existsSync("/.dockerenv")) {
+        envInfo.isDocker = true;
+    } else if (
+        fs.existsSync("/proc/self/cgroup") &&
+        fs.readFileSync("/proc/self/cgroup", "utf8").includes("docker")
+    ) {
+        envInfo.isDocker = true;
+    }
+
+    // 🔹 Check for Heroku Dyno (Environment Variables)
+    if (process.env.DYNO) {
+        envInfo.isHerokuDyno = true;
+    }
+
+    // 🔹 Check for AWS Lambda (AWS-Specific Environment Variables)
+    if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+        envInfo.isAWSLambda = true;
+    }
+
+    // 🔹 Check for Kubernetes (K8s) Environment
+    if (fs.existsSync("/var/run/secrets/kubernetes.io/serviceaccount")) {
+        envInfo.isKubernetes = true;
+    }
+
+    // 🔹 Check for Cloud VM (AWS EC2, Google Cloud, Azure)
+    const cloudInstanceFiles = [
+        "/sys/class/dmi/id/product_uuid", // AWS, GCP, Azure may have this
+        "/var/lib/cloud/instance" // Common in cloud-init based instances
+    ];
+    envInfo.isCloudVM = cloudInstanceFiles.some(file => fs.existsSync(file));
+
+    return envInfo;
 }
 
+// Welcome route
 app.get("/", (req, res) => {
-    res.json({ message: "Welcome to System Info API" });
+    res.json({ message: "Welcome to the Environment Detection API" });
 });
 
-app.get("/api/system-info", (req, res) => {
-    res.json(getSystemInfo());
+// Environment detection API
+app.get("/api/detect", (req, res) => {
+    res.json(detectEnvironment());
 });
 
+// Start server
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });
